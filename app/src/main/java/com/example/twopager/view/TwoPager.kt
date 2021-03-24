@@ -19,6 +19,7 @@ class TwoPager(context: Context?, attrs: AttributeSet?) : ViewGroup(context, att
     val pagingSlop = viewConfiguration.scaledPagingTouchSlop
     val overScroller = OverScroller(context)
     var scrolling = false
+    var scrolled = 0
     var downX = 0
     var targetPage = 0
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
@@ -29,15 +30,18 @@ class TwoPager(context: Context?, attrs: AttributeSet?) : ViewGroup(context, att
         var result = false
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                scrolling = false
                 downX = ev.x.toInt()
-
+                scrolled = scrollX
             }
             MotionEvent.ACTION_MOVE -> {
-                val dx = downX - ev.x
-                if (abs(dx) > pagingSlop) {
-                    scrolling = true
-                    parent.requestDisallowInterceptTouchEvent(true)
-                    result = true
+                if (!scrolling) {
+                    val dx = downX - ev.x
+                    if (abs(dx) > pagingSlop) {
+                        scrolling = true
+                        parent.requestDisallowInterceptTouchEvent(true)
+                        result = true
+                    }
                 }
             }
 
@@ -50,18 +54,20 @@ class TwoPager(context: Context?, attrs: AttributeSet?) : ViewGroup(context, att
             velocityTracker.clear()
         }
         velocityTracker.addMovement(event)
-        var result = false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                scrollX = event.x.toInt()
+                downX = event.x.toInt()
+                scrolled = scrollX
             }
             MotionEvent.ACTION_MOVE -> {
-
+                val dx =
+                    (downX - event.x + scrolled).coerceAtLeast(0f).coerceAtMost(width.toFloat())
+                scrollTo(dx.toInt(), 0)
             }
             MotionEvent.ACTION_UP -> {
                 velocityTracker.computeCurrentVelocity(1000, maxVelocity.toFloat())
                 val vx = velocityTracker.xVelocity
-                scrollX = (event.x - scrollX).toInt()
+                val scrollX = scrollX
                 targetPage = if (abs(vx) < minVelocity) {
                     if (scrollX < width / 2) {
                         0
@@ -77,8 +83,9 @@ class TwoPager(context: Context?, attrs: AttributeSet?) : ViewGroup(context, att
                 }
                 val distance = if (targetPage == 1) width - scrollX else -scrollX
                 overScroller.startScroll(scrollX, 0, distance, 0)
-                invalidate()
+                postInvalidateOnAnimation()
             }
+
         }
         return true
     }
@@ -100,9 +107,11 @@ class TwoPager(context: Context?, attrs: AttributeSet?) : ViewGroup(context, att
         }
     }
 
+
     override fun computeScroll() {
         if (overScroller.computeScrollOffset()) {
             scrollTo(overScroller.currX, overScroller.currY)
+            postInvalidateOnAnimation()
         }
     }
 }
